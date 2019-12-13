@@ -52,7 +52,7 @@ end cpu;
 architecture behavioral of cpu is
 
  -- zde dopiste potrebne deklarace signalu
-	signal pc_reg: std_logic_vector(12 downto 0) -- Program Counter
+	signal pc_reg: std_logic_vector(12 downto 0); -- Program Counter
 	signal pc_inc: std_logic; -- incrementation
 	signal pc_dec: std_logic; -- decrementation
 
@@ -76,36 +76,27 @@ architecture behavioral of cpu is
 		valIncR, valIncW, -- for +
 		valDecR, valDecW, -- for -
 		while_1, while_2,   -- for [
-        while1_end, while2_end, -- fro ]
+     		while1_end, while2_end, -- fro ]
 		printR, printW,
 		scanR, scanW,
  		toTmpR, toTmpW,
-		fromTmpR, toTmpW,
+		fromTmpR,
 		EOF,
 		comment);
 	
 
-	signal present_st : fsm_state := begin_st; -- default state
+	signal present_st : fsm_state; -- default state
 	signal next_st : fsm_state; -- 
 	-- Vectro for choosing value to write in data.
 	-- 00 -> write from stdin
 	-- 01 -> increment value of pointer and write its value
 	-- 10 -> decrement value of pointer and write its value
 	signal mx_data_sel : std_logic_vector(1 downto 0) := "00";
-	signal tmp 		   : std_logic_vector(7 downto 0) := (others => '0');
+	signal mx_wdata     : std_logic_vector(7 downto 0);
+	signal tmp 	   : std_logic_vector(7 downto 0) := (others => '0');
 begin
-
- -- zde dopiste vlastni VHDL kod
-
-
- -- pri tvorbe kodu reflektujte rady ze cviceni INP, zejmena mejte na pameti, ze 
- --   - nelze z vice procesu ovladat stejny signal,
- --   - je vhodne mit jeden proces pro popis jedne hardwarove komponenty, protoze pak
- --   - u synchronnich komponent obsahuje sensitivity list pouze CLK a RESET a 
- --   - u kombinacnich komponent obsahuje sensitivity list vsechny ctene signaly.
-
 	-- Programovy citac pro instrukci 
-	process program_cnt(CLK, RESET, pc_inc, pc_dec) 
+	progrma_cnt : process(CLK, RESET, pc_inc, pc_dec) 
 	begin 
 		if RESET = '1' then
 			pc_reg <= (others => '0');
@@ -121,33 +112,29 @@ begin
  	DATA_ADDR <= pc_reg;
 
 	-- Ukazatel do pamet dat
-	process mem_ptr(CLK, RESET, ptr_inc, ptr_dec)
+	mem_ptr :process(CLK, RESET, ptr_inc, ptr_dec)
 	begin
 		if RESET = '1' then 
-			ptr_reg <= x"1000"
+			ptr_reg <= "1000000000000";
 		elsif rising_edge(CLK) then
 			if ptr_inc = '1' then 
-				if ptr_reg = x"1FFF" then 
-					ptr_reg <= x"1000";
+				if ptr_reg = "1111111111111" then 
+					ptr_reg <= "1000000000000";
 				else
 					ptr_reg <= ptr_reg + 1;
 				end if;
 			elsif ptr_dec = '1' then 
-				if ptr_reg = x"1000" then 
-					ptr_reg <= x"1FFF";
+				if ptr_reg = "1000000000000" then 
+					ptr_reg <= "1111111111111";
 				else 				
 					ptr_reg <= ptr_reg - 1;
 				end if;
-			end if;		 
-	end process
+			end if;	
+		end if; 		
+	end process;
 
-	-- MX1 pro rozliseni pameti dat a programu 
-	process mx_prog_or_data(CLK, RESET, EN, )
-	begin
-
-   	end process
-	-- MX2 pro vyber pameti dat 
-	process mx_data_addr(CLK, RESET, mx_data_sel)
+	-- MX2 pro zapisu dat 
+	mx_data_addr: process (CLK, RESET, mx_data_sel)
 	begin
 		if RESET = '1' then 
 			mx_wdata <= (others => '0');
@@ -158,7 +145,9 @@ begin
 				when "01" =>
 					mx_wdata <= DATA_RDATA + 1; -- write value to incremented pointer
 				when "10" =>
-					mx_wdata <= DATA_RDATA + 1; -- write value to decremented pointer
+					mx_wdata <= DATA_RDATA - 1; -- write value to decremented pointer
+				when others =>
+					mx_wdata <= (others => '0');
 			end case;		
 		end if;
 	end process;
@@ -166,7 +155,7 @@ begin
 	DATA_WDATA <= mx_wdata;
 
 	-- for WHILE loop
-	process cnt_cntr (CLK, RESET, cnt_inc, cnt_dec)
+	cnt_cntr:process (CLK, RESET, cnt_inc, cnt_dec)
 	begin
 		if RESET = '1' then
 			cnt_reg <= (others => '0');
@@ -181,7 +170,7 @@ begin
 
 	OUT_DATA <= DATA_RDATA;
 	-- FSM 
-	process present_state (RESET, CLK, EN, next_st)
+	present_state :process (RESET, CLK, EN, next_st)
 	begin
 		if (RESET='1') then
 			present_st <= fetch;
@@ -190,23 +179,23 @@ begin
 		end if;
 	end process;
 
-	DARA_ADDR <= pc_reg  when present_st = fetch      else
+	DATA_ADDR <= pc_reg  when present_st = fetch      else
 				 ptr_reg when present_st = valIncR    else
 				 ptr_reg when present_st = valIncW    else
-				 ptr_reg when present_st = valSubR    else
-				 ptr_reg when present_st = valSubW    else
+				 ptr_reg when present_st = valDecR    else
+				 ptr_reg when present_st = valDecW    else
 				 ptr_reg when present_st = printR     else
 				 ptr_reg when present_st = scanW      else
 				 ptr_reg when present_st = toTmpR     else
-				 ptr_reg when present_st = fromTmpR   else
+				 ptr_reg when present_st = fromTmpR;
 			     	
-	process next_st_logic(
+	next_st_logic: process (
 						CLK,
 						EN,
-						PC_OUT,
 						DATA_RDATA,
-						PTR_OUT,
-						CNT_OUT,
+						ptr_reg,
+						cnt_reg,
+						pc_reg,
 						OUT_BUSY,
 						IN_VLD,
 						IN_DATA,
@@ -229,20 +218,20 @@ begin
 				DATA_RDWR <= '1'; -- let it read
 				next_st   <= decode;
 			when decode =>
-				code <= DATA_ADDR;
+				code := DATA_RDATA;
 				case( code ) is -- choose instruction
 					when x"3e" => next_st <= ptrInc; -- > NOT TESTED
 					when x"3c" => next_st <= ptrDec; -- < NOT TESTED
 					when x"2b" => next_st <= valIncR; -- + NOT TESTED
 					when x"2d" => next_st <= valDecR; -- - NOT TESTED
-					when x"5b" => next_st <= whilr_2; -- [ 
+					when x"5b" => next_st <= while_2; -- [ 
 					when x"5d" => next_st <= while2_end; -- ]
 					when x"2e" => next_st <= printR; -- . NOT TESTED
 					when x"2c" => next_st <= scanR; -- , NOT TESTED
 					when x"24" => next_st <= toTmpR; -- $
 					when x"21" => next_st <= fromTmpR; -- !
 					when x"00" => next_st <= EOF; -- null
-					when others => next_st <= commnet; -- comment
+					when others => next_st <= comment; -- comment
 				end case ;
 			when ptrInc => 
 				ptr_inc <= '1'; -- increment pointer
@@ -257,7 +246,7 @@ begin
 			when valIncR => -- read from sell 
 				DATA_EN <= '1';
 				DATA_RDWR <= '1';
-				next_state <= valIncW;
+				next_st <= valIncW;
 			when valIncW =>
 				DATA_EN    <= '1';
 				DATA_RDWR  <= '0';
@@ -265,11 +254,11 @@ begin
 				pc_inc     <= '1';
 				pc_dec	   <= '0';				
 				next_st    <= fetch;
-			when valSubR =>
+			when valDecR =>
 				DATA_EN <= '1';
 				DATA_RDWR <= '1';
-				next_state <= valSubW;
-			when valSubW =>
+				next_st <= valDecW;
+			when valDecW =>
 				DATA_EN    <= '1';
 				DATA_RDWR  <= '0';
 				DATA_WDATA <= DATA_RDATA - 1;
@@ -282,7 +271,7 @@ begin
 				next_st   <= printW;
 			when printW =>
 				 if (OUT_BUSY = '1') then 
-					next_st <= print; -- return to the same state
+					next_st <= printW; -- return to the same state
 				else
 					OUT_DATA <= DATA_RDATA;
 					OUT_WE   <= '1';
@@ -328,7 +317,7 @@ begin
 			when EOF =>
 				next_st <= EOF;
 			when others =>
-				next_st <= fetch
+				next_st <= fetch;
 				pc_dec <= '0';				
 			end case ;
 
