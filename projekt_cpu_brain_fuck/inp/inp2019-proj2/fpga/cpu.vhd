@@ -73,15 +73,15 @@ architecture behavioral of cpu is
 		decode, 
 		ptrInc, -- increment pointer 
 		ptrDec,-- decrement pointers
-		valInc1, valInc2, valInc3, -- for +
-		valDec1, valDec2, valDec3, -- for -
-		while1, while2, while3, while_en,   -- for [
-                while1_end, while2_end, while3_end, -- fro ]
-		
-		printR,
-		print,scan,
-		scanR,
-		Eof,
+		valIncR, valIncW, -- for +
+		valDecR, valDecW, -- for -
+		while_1, while_2,   -- for [
+        while1_end, while2_end, -- fro ]
+		printR, printW,
+		scanR, scanW,
+ 		toTmpR, toTmpW,
+		fromTmpR, toTmpW,
+		EOF,
 		comment);
 	
 
@@ -92,6 +92,7 @@ architecture behavioral of cpu is
 	-- 01 -> increment value of pointer and write its value
 	-- 10 -> decrement value of pointer and write its value
 	signal mx_data_sel : std_logic_vector(1 downto 0) := "00";
+	signal tmp 		   : std_logic_vector(7 downto 0) := (others => '0');
 begin
 
  -- zde dopiste vlastni VHDL kod
@@ -109,9 +110,9 @@ begin
 		if RESET = '1' then
 			pc_reg <= (others => '0');
 		elsif rising_edge(CLK) then
-			if pc_inc = '1' then
+			if (pc_inc = '1') and (pc_dec = '0') then
 				pc_reg <= pc_reg + 1;
-			elsif pc_dev = '1' then
+			elsif (pc_dec = '1') and (pc_inc = '0') then
 				pc_reg <= pc_reg - 1;
 			end if;
 		end if;
@@ -141,10 +142,10 @@ begin
 	end process
 
 	-- MX1 pro rozliseni pameti dat a programu 
---	process mx_prog_or_data()
---	begin
-		
---	end process
+	process mx_prog_or_data(CLK, RESET, EN, )
+	begin
+
+   	end process
 	-- MX2 pro vyber pameti dat 
 	process mx_data_addr(CLK, RESET, mx_data_sel)
 	begin
@@ -170,28 +171,169 @@ begin
 		if RESET = '1' then
 			cnt_reg <= (others => '0');
 		elsif rising_edge(CLK) then
-			if cnt_inc = '1' then
+			if (cnt_inc = '1' and  cnt_dec = '0') then
 				cnt_reg <= cnt_reg + 1;
-			elsif cnt_dec = '1' then
+			elsif (cnt_dec = '1' and cnt_inc = '0') then
 				cnt_reg <= cnt_reg - 1;
 			end if;
 		end if;
 	end process;
-	-- MX3 pro rizeni zapisove hodnoty 
+
 	OUT_DATA <= DATA_RDATA;
 	-- FSM 
-	process present_state (RESET, CLK)
+	process present_state (RESET, CLK, EN, next_st)
 	begin
 		if (RESET='1') then
-			present_st <= begin_st;
-		elsif rising_edge(CLK) then
-			if (CE = '1') then
-				present_st <= next_st;
-			end if;
+			present_st <= fetch;
+		elsif (rising_edge(CLK) and EN = '1') then
+			present_st <= next_st;
 		end if;
 	end process;
 
-	
+	DARA_ADDR <= pc_reg  when present_st = fetch      else
+				 ptr_reg when present_st = valIncR    else
+				 ptr_reg when present_st = valIncW    else
+				 ptr_reg when present_st = valSubR    else
+				 ptr_reg when present_st = valSubW    else
+				 ptr_reg when present_st = printR     else
+				 ptr_reg when present_st = scanW      else
+				 ptr_reg when present_st = toTmpR     else
+				 ptr_reg when present_st = fromTmpR   else
+			     	
+	process next_st_logic(
+						CLK,
+						EN,
+						PC_OUT,
+						DATA_RDATA,
+						PTR_OUT,
+						CNT_OUT,
+						OUT_BUSY,
+						IN_VLD,
+						IN_DATA,
+						present_st,
+						tmp
+						)
+	VARIABLE code : std_logic_vector (7 downto 0);
+	begin
+		ptr_inc <= '0';
+		ptr_dec <= '0';
+		pc_inc  <= '0';
+		pc_dec 	<= '0';
+		cnt_inc <= '0';
+		cnt_dec <= '0';
+		OUT_WE  <= '0';
+		DATA_EN <= '0';
+		case (present_st) is
+			when fetch => -- read from memory mem[PC]
+				DATA_EN   <= '1'; -- let processor work
+				DATA_RDWR <= '1'; -- let it read
+				next_st   <= decode;
+			when decode =>
+				code <= DATA_ADDR;
+				case( code ) is -- choose instruction
+					when x"3e" => next_st <= ptrInc; -- > NOT TESTED
+					when x"3c" => next_st <= ptrDec; -- < NOT TESTED
+					when x"2b" => next_st <= valIncR; -- + NOT TESTED
+					when x"2d" => next_st <= valDecR; -- - NOT TESTED
+					when x"5b" => next_st <= whilr_2; -- [ 
+					when x"5d" => next_st <= while2_end; -- ]
+					when x"2e" => next_st <= printR; -- . NOT TESTED
+					when x"2c" => next_st <= scanR; -- , NOT TESTED
+					when x"24" => next_st <= toTmpR; -- $
+					when x"21" => next_st <= fromTmpR; -- !
+					when x"00" => next_st <= EOF; -- null
+					when others => next_st <= commnet; -- comment
+				end case ;
+			when ptrInc => 
+				ptr_inc <= '1'; -- increment pointer
+				pc_inc <= '1'; -- move to the next instruction
+				pc_dec <= '0';				
+				next_st <= fetch; -- next state is process next inctruction
+			when ptrDec =>
+				ptr_dec <= '1';
+				pc_dec  <= '1';
+				pc_inc <= '0';				
+				next_st <= fetch;
+			when valIncR => -- read from sell 
+				DATA_EN <= '1';
+				DATA_RDWR <= '1';
+				next_state <= valIncW;
+			when valIncW =>
+				DATA_EN    <= '1';
+				DATA_RDWR  <= '0';
+				DATA_WDATA <= DATA_RDATA + 1;
+				pc_inc     <= '1';
+				pc_dec	   <= '0';				
+				next_st    <= fetch;
+			when valSubR =>
+				DATA_EN <= '1';
+				DATA_RDWR <= '1';
+				next_state <= valSubW;
+			when valSubW =>
+				DATA_EN    <= '1';
+				DATA_RDWR  <= '0';
+				DATA_WDATA <= DATA_RDATA - 1;
+				pc_inc     <= '0';
+				pc_dec     <= '1';				
+				next_st    <= fetch;
+			when printR => 
+				DATA_EN   <= '1';
+				DATA_RDWR <= '0';
+				next_st   <= printW;
+			when printW =>
+				 if (OUT_BUSY = '1') then 
+					next_st <= print; -- return to the same state
+				else
+					OUT_DATA <= DATA_RDATA;
+					OUT_WE   <= '1';
+					pc_inc   <= '1';
+					pc_dec <= '0';				
+					next_st  <= fetch;
+				end if;
+			when scanR =>
+				IN_REQ  <= '1';
+				next_st <= scanW;
+			when scanW =>
+				if (IN_VLD = '0') then 
+					next_st <= scanW;
+				else
+					IN_REQ     <= '0';
+					DATA_EN    <= '1';
+					DATA_RDWR  <= '0';
+					DATA_WDATA <= IN_DATA;
+					pc_inc     <= '1';
+ 					pc_dec <= '0';				
+					next_st    <= fetch;
+				end if;
+			when toTmpR =>
+				DATA_EN   <= '1';
+				DATA_RDWR <= '1';
+				next_st   <= toTmpW;
+			when toTmpW =>
+				tmp     <= DATA_RDATA;
+				pc_inc  <= '1';
+				pc_dec <= '0';				
+				next_st <= fetch;
+			when fromTmpR =>
+				DATA_EN    <= '1';
+				DATA_RDWR  <= '0';
+				DATA_WDATA <= tmp;
+				pc_inc     <= '1';
+				pc_dec <= '0';				
+				next_st    <= fetch;
+			when comment => 
+				pc_inc  <= '1';
+				pc_dec <= '0';				
+				next_st <= fetch;
+			when EOF =>
+				next_st <= EOF;
+			when others =>
+				next_st <= fetch
+				pc_dec <= '0';				
+			end case ;
+
+	end process ; -- next_st_logic
+			
 
 end behavioral;
  
