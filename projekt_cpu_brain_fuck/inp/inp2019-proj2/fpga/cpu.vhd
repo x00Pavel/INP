@@ -103,15 +103,15 @@ begin
 		if RESET = '1' then
 			pc_reg <= (others => '0');
 		elsif rising_edge(CLK) then
-			if (pc_inc = '1') and (pc_dec = '0') then
+			if pc_inc = '1' then
 				pc_reg <= pc_reg + 1;
-			elsif (pc_dec = '1') and (pc_inc = '0') then
+			elsif pc_dec = '1' then
 				pc_reg <= pc_reg - 1;
 			end if;
 		end if;
 	end process;
 	
- --	DATA_ADDR <= pc_reg;
+ 	DATA_ADDR <= pc_reg;
 
 	-- Ukazatel do pamet dat
 	mem_ptr :process(CLK, RESET, ptr_inc, ptr_dec)
@@ -180,18 +180,18 @@ begin
 	end process;
 
 	DATA_ADDR <= pc_reg  when present_st = fetch       else
-				 pc_reg  when present_st = go_back_1   else 
-				 pc_reg  when present_st = go_ahead_1  else 
+				--  pc_reg  when present_st = go_back_1   else 
+				--  pc_reg  when present_st = go_ahead_1  else 
 				 ptr_reg when present_st = valIncR     else
 				 ptr_reg when present_st = valIncW     else
-				 ptr_reg when present_st = valDecR     else
-				 ptr_reg when present_st = valDecW     else
+				--  ptr_reg when present_st = valDecR     else
+				--  ptr_reg when present_st = valDecW     else
 				 ptr_reg when present_st = printR      else
-				 ptr_reg when present_st = scanW       else
-				 ptr_reg when present_st = toTmpR      else
-				 ptr_reg when present_st = fromTmpR    else 
-				 ptr_reg when present_st = while_1     else 
-				 ptr_reg when present_st = while_1_end ; 
+				--  ptr_reg when present_st = scanW       else
+				--  ptr_reg when present_st = toTmpR      else
+				--  ptr_reg when present_st = fromTmpR    else 
+				--  ptr_reg when present_st = while_1     else 
+				--  ptr_reg when present_st = while_1_end ; 
 				 
 				 
 	next_st_logic: process (
@@ -200,7 +200,6 @@ begin
 						DATA_RDATA,
 						cnt_reg,
 						ptr_reg,
-				
 						pc_reg,
 						OUT_BUSY,
 						IN_VLD,
@@ -227,32 +226,32 @@ begin
 			when decode =>
 				code := DATA_RDATA;
 				case( code ) is -- choose instruction
-					when x"3e" => next_st <= ptrInc; -- > NOT TESTED
-					when x"3c" => next_st <= ptrDec; -- < NOT TESTED
+					-- when x"3e" => next_st <= ptrInc; -- > NOT TESTED
+					-- when x"3c" => next_st <= ptrDec; -- < NOT TESTED
 					when x"2b" => next_st <= valIncR; -- + NOT TESTED
-					when x"2d" => next_st <= valDecR; -- - NOT TESTED
-					when x"5b" => next_st <= while_1; -- [ 
-					when x"5d" => next_st <= while_1_end; -- ]
+					-- when x"2d" => next_st <= valDecR; -- - NOT TESTED
+					-- when x"5b" => next_st <= while_1; -- [ 
+					-- when x"5d" => next_st <= while_1_end; -- ]
 					when x"2e" => next_st <= printR; -- . NOT TESTED
-					when x"2c" => next_st <= scanR; -- , NOT TESTED
-					when x"24" => next_st <= toTmpR; -- $
-					when x"21" => next_st <= fromTmpR; -- !
-					when x"00" => next_st <= EOF; -- null
-					when others => next_st <= comment; -- comment
+					-- when x"2c" => next_st <= scanR; -- , NOT TESTED
+					-- when x"24" => next_st <= toTmpR; -- $
+					-- when x"21" => next_st <= fromTmpR; -- !
+					-- when x"00" => next_st <= EOF; -- null
+					-- when others => next_st <= comment; -- comment
 				end case ;
-			when ptrInc => 
-				ptr_inc <= '1'; -- increment pointer
-				ptr_dec <= '0';				
-				pc_inc  <= '1'; -- move to the next instruction
+			-- when ptrInc => 
+			-- 	ptr_inc <= '1'; -- increment pointer
+			-- 	ptr_dec <= '0';				
+			-- 	pc_inc  <= '1'; -- move to the next instruction
 				
-				next_st <= fetch; -- next state is process next inctruction
+			-- 	next_st <= fetch; -- next state is process next inctruction
 			
-			when ptrDec =>
-				ptr_dec <= '1';
-				ptr_inc <= '0';
-				pc_inc  <= '1';				
+			-- when ptrDec =>
+			-- 	ptr_dec <= '1';
+			-- 	ptr_inc <= '0';
+			-- 	pc_inc  <= '1';				
 				
-				next_st <= fetch;
+			-- 	next_st <= fetch;
 
 			when valIncR => -- read from sell 
 				DATA_EN   <= '1';
@@ -271,22 +270,22 @@ begin
 				
 				next_st     <= fetch;
 
-			when valDecR =>
-				DATA_EN <= '1';
-				DATA_RDWR <= '1';
+			-- when valDecR =>
+			-- 	DATA_EN <= '1';
+			-- 	DATA_RDWR <= '1';
 				
-				next_st <= valDecW;
+			-- 	next_st <= valDecW;
 
-			when valDecW =>
-				mx_data_sel <= "10";
+			-- when valDecW =>
+			-- 	mx_data_sel <= "10";
 			
-				DATA_EN    <= '1';
-				DATA_RDWR  <= '0';
+			-- 	DATA_EN    <= '1';
+			-- 	DATA_RDWR  <= '0';
 				
-				pc_inc     <= '1';
-				pc_dec     <= '0';		
+			-- 	pc_inc     <= '1';
+			-- 	pc_dec     <= '0';		
 
-				next_st    <= fetch;
+			-- 	next_st    <= fetch;
 
 			when printR => 
 				DATA_EN   <= '1';
@@ -304,112 +303,112 @@ begin
 					pc_dec  <= '0';				
 					next_st <= fetch;
 				end if;
-			when scanR =>
-				IN_REQ  <= '1';
+			-- when scanR =>
+			-- 	IN_REQ  <= '1';
 
-				mx_data_sel <= "00";
+			-- 	mx_data_sel <= "00";
 
-				next_st <= scanW;
-			when scanW =>
-				if (IN_VLD = '0') then 
-					next_st <= scanW;
-				else
-					IN_REQ     <= '1';
-					DATA_EN    <= '1';
-					DATA_RDWR  <= '0';
-					mx_data_sel <= "00";
-					--DATA_WDATA <= IN_DATA;
-					pc_inc     <= '1';
- 					pc_dec <= '0';				
-					next_st    <= fetch;
-				end if;
-			when toTmpR =>
-				DATA_EN   <= '1';
-				DATA_RDWR <= '0';
-				next_st   <= toTmpW;
-			when toTmpW =>
-				tmp     <= DATA_RDATA;
-				pc_inc  <= '1';
-				pc_dec  <= '0';				
-				next_st <= fetch;
-			when fromTmpR =>
-				DATA_EN     <= '1';
-				DATA_RDWR   <= '1';
-				mx_data_sel <= "11";
-				pc_inc      <= '1';
-				pc_dec      <= '0';				
-				next_st     <= fetch;
-			when comment => 
-				pc_inc  <= '1';
-				pc_dec <= '0';				
-				next_st <= fetch;
-			when EOF =>
-				next_st <= EOF;
-			when while_1 =>
-				DATA_EN <= '1';
-				DATA_RDWR <= '0';
-				next_st <= while_2;
-			when while_2 =>
-				if(DATA_RDATA = "000000000") then 
-					cnt_inc <= '1';
-					pc_inc  <= '1';
-					next_st <= go_ahead_1;
-				else
-					pc_inc  <= '1';
-					pc_dec  <= '0';
-					next_st <= fetch;
-				end if;
-			when go_ahead_1 =>
-				DATA_EN   <= '1';
-				DATA_RDWR <= '0';
-				next_st   <= go_ahead_2;
-			when go_ahead_2 =>
-				if (DATA_RDATA = x"5b") then -- here [
-					cnt_inc <= '1';
-                    			pc_inc  <= '1';
-					next_st <= go_ahead_1;
-				elsif (DATA_RDATA = x"5d") then -- here ]
-					cnt_dec <= '1';
-					pc_inc  <= '1';
-					if (cnt_reg = "00000001") then -- if there no any more right breakets
-						next_st <= fetch;
-					else
-						next_st <= go_ahead_1;
-					end if ;
-				else 
-					pc_inc <= '1';
-					next_st <= go_ahead_1;
-				end if;
-			when wheli_1_end =>
-				if(DATA_RDATA = "00000000") then 
-					pc_inc <= '1';
-					next_st <= fetch;
-				else
-					cnt_inc <= '1';
-					pc_dec  <= '1';
-					next_st <= go_back_1;
-				end if;
-			when go_back_1 =>
-				DATA_EN <= '1';
-				DATA_RDWR <= '0';
-				next_st <= go_back_2;
-			when go_back_2 =>
-				if (DATA_RDATA = x"5b") then -- here ]
-					cnt_inc <= '1';
-                    			pc_dec  <= '1';
-					next_st <= go_back_1;
-				elsif (DATA_RDATA = x"5d") then -- here [
-					cnt_dec <= '1';
-					pc_dec  <= '1';
-					if (cnt_reg = "00000001") then -- if there no any more right breakets
-						next_st <= fetch;
-					else
-						next_st <= go_back_1;
-					end if ;
-				else 
-					pc_dec  <= '1';
-					next_st <= go_back_1;
-				end if;
+			-- 	next_st <= scanW;
+			-- when scanW =>
+			-- 	if (IN_VLD = '0') then 
+			-- 		next_st <= scanW;
+			-- 	else
+			-- 		IN_REQ     <= '1';
+			-- 		DATA_EN    <= '1';
+			-- 		DATA_RDWR  <= '0';
+			-- 		mx_data_sel <= "00";
+			-- 		--DATA_WDATA <= IN_DATA;
+			-- 		pc_inc     <= '1';
+ 			-- 		pc_dec <= '0';				
+			-- 		next_st    <= fetch;
+			-- 	end if;
+			-- when toTmpR =>
+			-- 	DATA_EN   <= '1';
+			-- 	DATA_RDWR <= '0';
+			-- 	next_st   <= toTmpW;
+			-- when toTmpW =>
+			-- 	tmp     <= DATA_RDATA;
+			-- 	pc_inc  <= '1';
+			-- 	pc_dec  <= '0';				
+			-- 	next_st <= fetch;
+			-- when fromTmpR =>
+			-- 	DATA_EN     <= '1';
+			-- 	DATA_RDWR   <= '1';
+			-- 	mx_data_sel <= "11";
+			-- 	pc_inc      <= '1';
+			-- 	pc_dec      <= '0';				
+			-- 	next_st     <= fetch;
+			-- when comment => 
+			-- 	pc_inc  <= '1';
+			-- 	pc_dec <= '0';				
+			-- 	next_st <= fetch;
+			-- when EOF =>
+			-- 	next_st <= EOF;
+			-- when while_1 =>
+			-- 	DATA_EN <= '1';
+			-- 	DATA_RDWR <= '0';
+			-- 	next_st <= while_2;
+			-- when while_2 =>
+			-- 	if(DATA_RDATA = "000000000") then 
+			-- 		cnt_inc <= '1';
+			-- 		pc_inc  <= '1';
+			-- 		next_st <= go_ahead_1;
+			-- 	else
+			-- 		pc_inc  <= '1';
+			-- 		pc_dec  <= '0';
+			-- 		next_st <= fetch;
+			-- 	end if;
+			-- when go_ahead_1 =>
+			-- 	DATA_EN   <= '1';
+			-- 	DATA_RDWR <= '0';
+			-- 	next_st   <= go_ahead_2;
+			-- when go_ahead_2 =>
+			-- 	if (DATA_RDATA = x"5b") then -- here [
+			-- 		cnt_inc <= '1';
+            --         			pc_inc  <= '1';
+			-- 		next_st <= go_ahead_1;
+			-- 	elsif (DATA_RDATA = x"5d") then -- here ]
+			-- 		cnt_dec <= '1';
+			-- 		pc_inc  <= '1';
+			-- 		if (cnt_reg = "00000001") then -- if there no any more right breakets
+			-- 			next_st <= fetch;
+			-- 		else
+			-- 			next_st <= go_ahead_1;
+			-- 		end if ;
+			-- 	else 
+			-- 		pc_inc <= '1';
+			-- 		next_st <= go_ahead_1;
+			-- 	end if;
+			-- when wheli_1_end =>
+			-- 	if(DATA_RDATA = "00000000") then 
+			-- 		pc_inc <= '1';
+			-- 		next_st <= fetch;
+			-- 	else
+			-- 		cnt_inc <= '1';
+			-- 		pc_dec  <= '1';
+			-- 		next_st <= go_back_1;
+			-- 	end if;
+			-- when go_back_1 =>
+			-- 	DATA_EN <= '1';
+			-- 	DATA_RDWR <= '0';
+			-- 	next_st <= go_back_2;
+			-- when go_back_2 =>
+			-- 	if (DATA_RDATA = x"5b") then -- here ]
+			-- 		cnt_inc <= '1';
+            --         			pc_dec  <= '1';
+			-- 		next_st <= go_back_1;
+			-- 	elsif (DATA_RDATA = x"5d") then -- here [
+			-- 		cnt_dec <= '1';
+			-- 		pc_dec  <= '1';
+			-- 		if (cnt_reg = "00000001") then -- if there no any more right breakets
+			-- 			next_st <= fetch;
+			-- 		else
+			-- 			next_st <= go_back_1;
+			-- 		end if ;
+			-- 	else 
+			-- 		pc_dec  <= '1';
+			-- 		next_st <= go_back_1;
+			-- 	end if;
 			when others =>
 				pc_dec <= '0';				
 				pc_inc <= '1';
